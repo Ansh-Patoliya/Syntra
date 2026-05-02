@@ -34,6 +34,8 @@ class Hackathon(models.Model):
     status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='registration_open')
     min_team_size = models.PositiveIntegerField(default=1)
     max_team_size = models.PositiveIntegerField(default=4)
+    room_configuration = models.JSONField(null=True, blank=True)
+    seating_allocation = models.JSONField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
