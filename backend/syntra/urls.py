@@ -27,6 +27,7 @@ urlpatterns = [
     path('api/organizer/', include('organizer.api_urls')),
     path('api/participant/', include('participant.api_urls')),
     path('accounts/', include('accounts.urls')),
+    path('organizer/', include('organizer.urls')),
     # Render a basic authenticated dashboard at the root
     path('', login_required(TemplateView.as_view(template_name='accounts/dashboard.html')), name='home'),
 ]
