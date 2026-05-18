@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Team, TeamMember, Skill, ParticipantProfile
+from .models import Team, TeamMember, Skill, ParticipantProfile, TeamRequest
 from accounts.models import User
 
 class SkillSerializer(serializers.ModelSerializer):
@@ -10,12 +10,14 @@ class SkillSerializer(serializers.ModelSerializer):
 class ParticipantDiscoverySerializer(serializers.ModelSerializer):
     user_email = serializers.EmailField(source='user.email', read_only=True)
     full_name = serializers.CharField(source='user.full_name', read_only=True)
+    user_id = serializers.IntegerField(source='user.id', read_only=True)
     skills = SkillSerializer(many=True, read_only=True)
 
     class Meta:
         model = ParticipantProfile
         fields = [
             'id', 
+            'user_id',
             'user_email', 
             'full_name', 
             'skills', 
@@ -24,6 +26,11 @@ class ParticipantDiscoverySerializer(serializers.ModelSerializer):
             'experience', 
             'looking_for_team'
         ]
+
+class ParticipantProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ParticipantProfile
+        fields = ['visibility']
 
 class TeamMemberSerializer(serializers.ModelSerializer):
     user_email = serializers.EmailField(source='user.email', read_only=True)
@@ -79,6 +86,16 @@ class TeamSerializer(serializers.ModelSerializer):
 
 class JoinTeamSerializer(serializers.Serializer):
     invite_token = serializers.UUIDField(required=True)
+
+class TeamRequestSerializer(serializers.ModelSerializer):
+    team_name = serializers.CharField(source='team.name', read_only=True)
+    hackathon_name = serializers.CharField(source='team.hackathon.name', read_only=True)
+    hackathon_id = serializers.IntegerField(source='team.hackathon.id', read_only=True)
+
+    class Meta:
+        model = TeamRequest
+        fields = ['id', 'team', 'team_name', 'hackathon_name', 'hackathon_id', 'receiver', 'status', 'created_at']
+        read_only_fields = ['id', 'status', 'created_at']
 
 
 class SelectProblemStatementSerializer(serializers.Serializer):

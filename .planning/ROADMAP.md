@@ -36,6 +36,8 @@ Plans:
 | 6. Organizer Create Hackathon | 1/1 | Done | 2026-05-05 |
 | 7. Seating & Problem Statement Management in Organizer | 1/1 | Done | 2026-05-05 |
 | 8. Room Configuration UI | 1/1 | Done | 2026-05-05 |
+| 9. Participant Models and APIs | 1/1 | Done | 2026-05-18 |
+| 10. Participant Dashboard UI Integration | 3/3 | Done | 2026-05-18 |
 
 ### Phase 2: Problem Statement Selection Limits and Concurrency Control
 
@@ -110,22 +112,32 @@ Plans:
 Plans:
 - [x] 08-PLAN.md: Dynamic JS room builder, backend cleanup
 
-### Phase 9: participant join registration open hackathon
+### Phase 9: Participant Models and API Implementation
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Implement backend models (Team, TeamMember, ParticipantProfile) and REST APIs for team building, discovering participants, and problem statement selection.
+**Requirements**: PROF-02, PROF-03, TEAM-01, TEAM-02, TEAM-04, QR-01
 **Depends on:** Phase 8
-**Plans:** 0 plans
+**Plans:** 1 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 9 to break down)
+- [x] 09-01: Create participant models and APIs
 
-### Phase 10: Migrate token storage to HttpOnly Cookies with JWT
+### Phase 10: Participant Dashboard UI Integration
 
-**Goal:** [To be planned]
+**Goal:** Integrate the participant frontend templates with the backend APIs to enable hackathon browsing and team management.
 **Requirements**: TBD
 **Depends on:** Phase 9
 **Plans:** 0 plans
 
 Plans:
 - [ ] TBD (run /gsd-plan-phase 10 to break down)
+
+### Phase 11: Migrate token storage to HttpOnly Cookies with JWT
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 10
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 11 to break down)

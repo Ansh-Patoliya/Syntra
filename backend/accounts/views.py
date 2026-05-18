@@ -52,7 +52,9 @@ def dashboard_view(request: HttpRequest) -> HttpResponse:
             context['hackathons'] = []
     elif getattr(request.user, 'role', None) == 'participant':
         from organizer.models import Hackathon
-        from participant.models import Team
+        from participant.models import Team, ParticipantProfile
+        profile, _ = ParticipantProfile.objects.get_or_create(user=request.user)
+        context['profile'] = profile
         context['upcoming_hackathons'] = (
             Hackathon.objects
             .filter(status='registration_open')

@@ -28,6 +28,7 @@ class Team(models.Model):
     hackathon = models.ForeignKey('organizer.Hackathon', on_delete=models.CASCADE, related_name='teams')
     name = models.CharField(max_length=255)
     leader = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='led_teams')
+    invite_token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     is_registered = models.BooleanField(default=False)
     qr_code = models.ImageField(upload_to='team_qr_codes/', blank=True, null=True)
     food_tokens_total = models.PositiveIntegerField(default=0)
@@ -68,4 +69,22 @@ class TeamMember(models.Model):
 
     def __str__(self):
         return f"{self.name} - {self.team.name}"
+
+
+class TeamRequest(models.Model):
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('accepted', 'Accepted'),
+        ('declined', 'Declined')
+    )
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='requests')
+    receiver = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='received_team_requests')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('team', 'receiver')
+
+    def __str__(self):
+        return f"{self.team.name} -> {self.receiver.email} ({self.status})"
 

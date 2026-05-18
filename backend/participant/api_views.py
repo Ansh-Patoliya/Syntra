@@ -9,11 +9,12 @@ from django.db.models import Count, Case, When, F, Value, BooleanField, Q
 from django.utils import timezone
 
 from organizer.models import Hackathon, ProblemStatement
-from .models import Team, TeamMember, ParticipantProfile, Skill
+from .models import Team, TeamMember, ParticipantProfile, Skill, TeamRequest
 from .api_serializers import (
     TeamSerializer, TeamMemberSerializer,
     ParticipantDiscoverySerializer, JoinTeamSerializer,
-    SelectProblemStatementSerializer, ParticipantProblemStatementSerializer
+    SelectProblemStatementSerializer, ParticipantProblemStatementSerializer,
+    TeamRequestSerializer, ParticipantProfileSerializer
 )
 
 
@@ -26,8 +27,8 @@ class ParticipantDiscoveryAPIView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # Only users looking for a team
-        queryset = ParticipantProfile.objects.filter(looking_for_team=True)
+        # Only users who have made their profile visible
+        queryset = ParticipantProfile.objects.filter(visibility=True)
         
         skill_query = self.request.query_params.get('skill')
         if skill_query:
@@ -207,3 +208,84 @@ class ParticipantProblemStatementViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         cache.set(cache_key, serializer.data, timeout=3600)
         return Response(serializer.data)
+
+
+class TeamRequestViewSet(viewsets.ModelViewSet):
+    serializer_class = TeamRequestSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return TeamRequest.objects.filter(
+            Q(receiver=self.request.user) | Q(team__leader=self.request.user)
+        ).distinct()
+
+    def perform_create(self, serializer):
+        team = serializer.validated_data['team']
+        receiver = serializer.validated_data['receiver']
+        
+        if team.leader != self.request.user:
+            raise PermissionDenied("Only the team leader can send requests.")
+            
+        # Ensure the receiver is actually visible
+        try:
+            if not receiver.participant_profile.visibility:
+                raise serializers.ValidationError({"receiver": "This user is not currently accepting team requests."})
+        except ParticipantProfile.DoesNotExist:
+            raise serializers.ValidationError({"receiver": "This user does not have a participant profile."})
+        
+        # Check if a pending request already exists
+        if TeamRequest.objects.filter(team=team, receiver=receiver, status='pending').exists():
+            raise serializers.ValidationError("A pending request already exists for this user.")
+            
+        serializer.save()
+
+    @action(detail=True, methods=['post'])
+    def accept(self, request, pk=None):
+        team_request = self.get_object()
+        if team_request.receiver != request.user:
+            raise PermissionDenied("You can only accept requests sent to you.")
+        
+        if team_request.status != 'pending':
+            return Response({"detail": "Request already processed."}, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            team_request.status = 'accepted'
+            team_request.save()
+            
+            # Create TeamMember
+            TeamMember.objects.get_or_create(
+                team=team_request.team,
+                email=request.user.email,
+                defaults={
+                    'hackathon': team_request.team.hackathon,
+                    'user': request.user,
+                    'name': request.user.get_full_name() or request.user.email,
+                    'member_role': 'Member'
+                }
+            )
+
+        return Response({"detail": "Request accepted."}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'])
+    def decline(self, request, pk=None):
+        team_request = self.get_object()
+        if team_request.receiver != request.user:
+            raise PermissionDenied("You can only decline requests sent to you.")
+        
+        if team_request.status != 'pending':
+            return Response({"detail": "Request already processed."}, status=status.HTTP_400_BAD_REQUEST)
+
+        team_request.status = 'declined'
+        team_request.save()
+        return Response({"detail": "Request declined."}, status=status.HTTP_200_OK)
+
+class ParticipantProfileUpdateAPIView(generics.UpdateAPIView):
+    serializer_class = ParticipantProfileSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        profile, _ = ParticipantProfile.objects.get_or_create(
+            user=self.request.user,
+            defaults={'college': 'Not Specified', 'semester': 1, 'degree': 'Not Specified'}
+        )
+        return profile

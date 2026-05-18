@@ -6,8 +6,9 @@ from django.contrib import messages
 from django.core.cache import cache
 from django.db.models import Count, Case, When, F, Value, BooleanField
 from organizer.models import Hackathon, ProblemStatement
-from .models import Team, TeamMember
+from .models import Team, TeamMember, ParticipantProfile
 from .forms import TeamRegistrationForm, TeamMemberForm
+from django.views.generic import ListView
 
 class HackathonListView(LoginRequiredMixin, ListView):
     model = Hackathon

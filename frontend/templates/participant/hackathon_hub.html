@@ -114,6 +114,26 @@
         </div>
     </div>
 
+    <!-- ── RECRUITING ── -->
+    {% if is_leader %}
+    <div class="glass rounded-2xl p-4 sm:p-6 lg:p-8 anim anim1">
+        <div class="mb-5">
+            <p class="text-xs uppercase tracking-[.18em] text-indigo-300 font-tech mb-0.5">Recruiting</p>
+            <h2 class="text-xl font-bold text-white">Find Solo Participants</h2>
+            <p class="text-xs text-slate-400 mt-1">Search for participants looking for a team based on skills.</p>
+        </div>
+        
+        <div class="flex gap-3 mb-4">
+            <input type="text" id="skill-search-input" placeholder="Enter skill (e.g., React, Python)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none transition-all">
+            <button onclick="searchParticipants()" class="shrink-0 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors">Search</button>
+        </div>
+        
+        <div id="search-results" class="space-y-3 max-h-80 overflow-y-auto pr-2">
+            <!-- Results will be injected here via JS -->
+        </div>
+    </div>
+    {% endif %}
+
     <!-- ── MY TEAM ── -->
     <div class="glass rounded-2xl p-4 sm:p-6 lg:p-8 anim anim1">
         <div class="flex items-start sm:items-center justify-between mb-4 sm:mb-5 gap-3">
@@ -525,6 +545,74 @@
             showToast('Network error. Please try again.', false);
             btn.disabled = false;
             btn.textContent = 'Select This Problem Statement';
+        }
+    }
+    // ── Recruiting Search ──
+    async function searchParticipants() {
+        const query = document.getElementById('skill-search-input').value.trim();
+        const resultsDiv = document.getElementById('search-results');
+        
+        if (!query) {
+            resultsDiv.innerHTML = '<p class="text-sm text-slate-500 italic text-center py-4">Please enter a skill to search.</p>';
+            return;
+        }
+
+        resultsDiv.innerHTML = '<p class="text-sm text-indigo-400/70 text-center py-4">Searching...</p>';
+
+        try {
+            const res = await fetchWithAuth(`/api/participant/discovery/?skill=${encodeURIComponent(query)}`);
+            const data = await res.json();
+            
+            if (!Array.isArray(data) || data.length === 0) {
+                resultsDiv.innerHTML = '<p class="text-sm text-slate-500 italic text-center py-4">No participants found with that skill.</p>';
+                return;
+            }
+
+            resultsDiv.innerHTML = data.map(p => `
+                <div class="flex items-center justify-between p-3 rounded-xl border border-slate-700/50 bg-slate-800/30 hover:border-slate-600/50 transition-colors">
+                    <div>
+                        <p class="font-medium text-white">${p.full_name || p.user_email}</p>
+                        <p class="text-xs text-slate-400 mt-0.5">${p.college || 'College not specified'} &middot; ${p.experience || 0} yrs exp</p>
+                        <div class="flex gap-1.5 mt-1.5 flex-wrap">
+                            ${p.skills.map(s => `<span class="px-2 py-0.5 bg-slate-700/50 rounded-full text-[10px] text-slate-300">${s.name}</span>`).join('')}
+                        </div>
+                    </div>
+                    <button onclick="inviteParticipant(${p.user_id}, this)" class="shrink-0 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                        Invite
+                    </button>
+                </div>
+            `).join('');
+        } catch (e) {
+            resultsDiv.innerHTML = '<p class="text-sm text-red-400 text-center py-4">Error fetching results.</p>';
+        }
+    }
+
+    // ── Send Request ──
+    async function inviteParticipant(userId, btn) {
+        btn.disabled = true;
+        btn.textContent = 'Sending...';
+        
+        try {
+            const res = await fetchWithAuth('/api/participant/requests/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                body: JSON.stringify({ team: {{ team.pk|default:"null" }}, receiver: userId }),
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                btn.textContent = 'Sent';
+                btn.className = 'shrink-0 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-semibold px-3 py-1.5 rounded-lg';
+                showToast('Invite sent successfully.', true);
+            } else {
+                btn.disabled = false;
+                btn.textContent = 'Invite';
+                showToast(data.non_field_errors?.[0] || 'Failed to send invite.', false);
+            }
+        } catch (e) {
+            btn.disabled = false;
+            btn.textContent = 'Invite';
+            showToast('Network error.', false);
         }
     }
 </script>
