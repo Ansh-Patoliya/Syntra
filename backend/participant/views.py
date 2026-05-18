@@ -17,9 +17,10 @@ class HackathonListView(LoginRequiredMixin, ListView):
     paginate_by = 12  # Limit to 12 per page to keep render times fast
 
     def get_queryset(self):
+        from django.utils import timezone
         return (
             Hackathon.objects
-            .filter(status='registration_open')
+            .filter(status='registration_open', registration_deadline__gt=timezone.now())
             .defer('room_configuration', 'seating_allocation', 'description')
             .order_by('start_date')
         )
@@ -28,8 +29,11 @@ class HackathonRegisterWizardView(LoginRequiredMixin, View):
     def get(self, request, pk):
         hackathon = get_object_or_404(Hackathon, pk=pk)
         
-        if hackathon.status != 'registration_open':
-            messages.error(request, "This hackathon is not open for registration.")
+        from django.utils import timezone
+        if hackathon.status != 'registration_open' or timezone.now() > hackathon.registration_deadline:
+            # Discard draft teams
+            Team.objects.filter(hackathon=hackathon, is_registered=False).delete()
+            messages.error(request, "Registration is closed or deadline has passed for this hackathon.")
             return redirect('hackathon-list')
 
         # Find if user already has a draft team for this hackathon
@@ -39,13 +43,14 @@ class HackathonRegisterWizardView(LoginRequiredMixin, View):
             messages.info(request, "You have already registered a team for this hackathon.")
             return redirect('dashboard')
             
-        # Check if user is already a member of another registered team
-        if TeamMember.objects.filter(
+        # Check if user is already a member of a team (draft or registered) for this hackathon
+        joined_team_member = TeamMember.objects.filter(
             email=request.user.email,
-            team__hackathon=hackathon,
-            team__is_registered=True
-        ).select_related('team', 'team__hackathon').exists():
-            messages.info(request, "You are already registered as a member of a team for this hackathon.")
+            team__hackathon=hackathon
+        ).select_related('team', 'team__leader').first()
+        
+        if joined_team_member:
+            messages.info(request, f"You are already a member of team '{joined_team_member.team.name}' led by {joined_team_member.team.leader.email} for this hackathon.")
             return redirect('dashboard')
         
         team_form = TeamRegistrationForm(instance=team)
@@ -61,8 +66,11 @@ class HackathonRegisterWizardView(LoginRequiredMixin, View):
     def post(self, request, pk):
         hackathon = get_object_or_404(Hackathon, pk=pk)
         
-        if hackathon.status != 'registration_open':
-            messages.error(request, "This hackathon is not open for registration.")
+        from django.utils import timezone
+        if hackathon.status != 'registration_open' or timezone.now() > hackathon.registration_deadline:
+            # Discard draft teams
+            Team.objects.filter(hackathon=hackathon, is_registered=False).delete()
+            messages.error(request, "Registration is closed or deadline has passed for this hackathon.")
             return redirect('hackathon-list')
 
         team = Team.objects.filter(leader=request.user, hackathon=hackathon).first()
@@ -71,12 +79,14 @@ class HackathonRegisterWizardView(LoginRequiredMixin, View):
             messages.info(request, "You have already registered a team for this hackathon.")
             return redirect('dashboard')
             
-        if TeamMember.objects.filter(
+        # Check if user is already a member of a team (draft or registered) for this hackathon
+        joined_team_member = TeamMember.objects.filter(
             email=request.user.email,
-            team__hackathon=hackathon,
-            team__is_registered=True
-        ).select_related('team').exists():
-            messages.info(request, "You are already registered as a member of a team for this hackathon.")
+            team__hackathon=hackathon
+        ).select_related('team', 'team__leader').first()
+        
+        if joined_team_member:
+            messages.info(request, f"You are already a member of team '{joined_team_member.team.name}' led by {joined_team_member.team.leader.email} for this hackathon.")
             return redirect('dashboard')
 
         if 'save_team' in request.POST:
@@ -93,7 +103,19 @@ class HackathonRegisterWizardView(LoginRequiredMixin, View):
             if not team:
                 messages.error(request, "Please save team name first.")
                 return redirect('hackathon-register', pk=pk)
-            member_form = TeamMemberForm(request.POST)
+
+            member_id = request.POST.get('member_id')
+            if member_id:
+                # We are editing an existing member!
+                member = get_object_or_404(TeamMember, id=member_id, team=team)
+                member_form = TeamMemberForm(request.POST, instance=member)
+            else:
+                # Enforce team capacity (including pending invitations) only for NEW members!
+                if team.occupied_slots >= hackathon.max_team_size:
+                    messages.error(request, "Your team is full (including pending invitations).")
+                    return redirect('hackathon-register', pk=pk)
+                member_form = TeamMemberForm(request.POST)
+
             if member_form.is_valid():
                 member = member_form.save(commit=False)
                 member.team = team
@@ -101,12 +123,28 @@ class HackathonRegisterWizardView(LoginRequiredMixin, View):
                     member.clean() # triggers email uniqueness check
                     member.save()
                     member_form.save_m2m() # for skills
-                    messages.success(request, "Member added successfully.")
+
+                    # Process additional custom skills entered by user
+                    additional_skills = member_form.cleaned_data.get('additional_skills', '').strip()
+                    if additional_skills:
+                        from .models import Skill
+                        skill_names = [s.strip() for s in additional_skills.split(',') if s.strip()]
+                        for name in skill_names:
+                            skill, _ = Skill.objects.get_or_create(
+                                name__iexact=name,
+                                defaults={'name': name}
+                            )
+                            member.skills.add(skill)
+
+                    if member_id:
+                        messages.success(request, "Member updated successfully.")
+                    else:
+                        messages.success(request, "Member added successfully.")
                 except Exception as e:
                     messages.error(request, str(e))
                 return redirect('hackathon-register', pk=pk)
             else:
-                messages.error(request, "Failed to add member. Please check fields.")
+                messages.error(request, "Failed to save member. Please check fields.")
         elif 'complete_registration' in request.POST:
             if not team:
                 messages.error(request, "Team does not exist.")
@@ -123,8 +161,9 @@ class HackathonRegisterWizardView(LoginRequiredMixin, View):
             # Additional validation: all members must have required fields
             members = team.members.all()
             for member in members:
-                if not member.college or not member.semester or not member.degree:
-                    messages.error(request, f"Validation Failed: Member {member.name} is missing required profile fields.")
+                missing = member.get_missing_fields()
+                if missing:
+                    messages.error(request, f"Validation Failed: Teammate '{member.name}' is missing required fields: {missing}.")
                     return redirect('hackathon-register', pk=pk)
             
             team.is_registered = True

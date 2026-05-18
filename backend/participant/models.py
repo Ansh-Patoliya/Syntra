@@ -46,6 +46,20 @@ class Team(models.Model):
     def __str__(self):
         return f"{self.name} ({self.hackathon.name})"
 
+    @property
+    def occupied_slots(self):
+        from django.utils import timezone
+        # 1 for leader + accepted team members
+        slots = 1 + self.members.count()
+        # Active pending invitations
+        active_pending = self.requests.filter(
+            status='pending',
+            team__is_registered=False,
+            team__hackathon__registration_deadline__gt=timezone.now(),
+            team__hackathon__status='registration_open'
+        ).count()
+        return slots + active_pending
+
 
 class TeamMember(models.Model):
     team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='members')
@@ -69,6 +83,16 @@ class TeamMember(models.Model):
 
     def __str__(self):
         return f"{self.name} - {self.team.name}"
+
+    def get_missing_fields(self):
+        missing = []
+        if not self.college:
+            missing.append("College")
+        if not self.semester:
+            missing.append("Semester")
+        if not self.degree:
+            missing.append("Degree")
+        return ", ".join(missing)
 
 
 class TeamRequest(models.Model):

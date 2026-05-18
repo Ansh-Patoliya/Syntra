@@ -53,22 +53,66 @@ def dashboard_view(request: HttpRequest) -> HttpResponse:
     elif getattr(request.user, 'role', None) == 'participant':
         from organizer.models import Hackathon
         from participant.models import Team, ParticipantProfile
-        profile, _ = ParticipantProfile.objects.get_or_create(user=request.user)
+        from django.utils import timezone
+
+        # Discard any draft teams for expired hackathons
+        Team.objects.filter(
+            is_registered=False,
+            hackathon__registration_deadline__lt=timezone.now()
+        ).delete()
+
+        profile, _ = ParticipantProfile.objects.get_or_create(
+            user=request.user,
+            defaults={'college': 'Not Specified', 'semester': 1, 'degree': 'Not Specified'}
+        )
+
+        # Force recruiting visibility to False if the user is already a team leader or team member
+        from django.db.models import Q
+        from participant.models import TeamMember
+        is_in_team = Team.objects.filter(leader=request.user).exists() or TeamMember.objects.filter(email=request.user.email).exists()
+        if is_in_team and profile.visibility:
+            profile.visibility = False
+            profile.save()
+
+        has_registered_team = (
+            Team.objects.filter(leader=request.user, is_registered=True).exists() or
+            TeamMember.objects.filter(email=request.user.email, team__is_registered=True).exists()
+        )
+        context['has_registered_team'] = has_registered_team
+
         context['profile'] = profile
         context['upcoming_hackathons'] = (
             Hackathon.objects
-            .filter(status='registration_open')
+            .filter(status='registration_open', registration_deadline__gt=timezone.now())
             # Only pull columns the template needs — skip the heavy JSON blobs
             .defer('room_configuration', 'seating_allocation', 'description')
             .order_by('start_date')
         )
         context['my_teams'] = (
             Team.objects
-            .filter(leader=request.user)
-            # Join hackathon in a single query (avoids per-team hit)
-            .select_related('hackathon')
+            .filter(Q(leader=request.user) | Q(members__email=request.user.email))
+            # Join hackathon and leader in a single query
+            .select_related('hackathon', 'leader')
+            .distinct()
             .order_by('-created_at')
         )
+
+        # Notify team leader if any sent team invitations were declined
+        from participant.models import TeamRequest
+        declined_requests = TeamRequest.objects.filter(
+            team__leader=request.user, 
+            status='declined'
+        ).select_related('receiver', 'team', 'team__hackathon')
+        
+        if declined_requests.exists():
+            for req in declined_requests:
+                receiver_name = req.receiver.get_full_name() or req.receiver.email
+                messages.warning(
+                    request,
+                    f"Invitation sent to {receiver_name} for team '{req.team.name}' ({req.team.hackathon.name}) was declined."
+                )
+            # Clear them so the leader is only notified once
+            declined_requests.delete()
 
     return render(request, 'accounts/dashboard.html', context)
 
@@ -151,7 +195,6 @@ def login_view(request: HttpRequest) -> HttpResponse:
     return render(request, 'accounts/login.html', {'form': form, 'next': safe_next or ''})
 
 
-@require_POST
 @login_required
 def logout_view(request: HttpRequest) -> HttpResponse:
     """Log the user out and redirect to login."""

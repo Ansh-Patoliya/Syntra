@@ -115,7 +115,7 @@
     </div>
 
     <!-- ── RECRUITING ── -->
-    {% if is_leader %}
+    {% if is_leader and not team.is_registered %}
     <div class="glass rounded-2xl p-4 sm:p-6 lg:p-8 anim anim1">
         <div class="mb-5">
             <p class="text-xs uppercase tracking-[.18em] text-indigo-300 font-tech mb-0.5">Recruiting</p>

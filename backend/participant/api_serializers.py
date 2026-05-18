@@ -21,10 +21,9 @@ class ParticipantDiscoverySerializer(serializers.ModelSerializer):
             'user_email', 
             'full_name', 
             'skills', 
-            'github_link', 
             'college', 
-            'experience', 
-            'looking_for_team'
+            'degree',
+            'semester',
         ]
 
 class ParticipantProfileSerializer(serializers.ModelSerializer):
@@ -96,6 +95,22 @@ class TeamRequestSerializer(serializers.ModelSerializer):
         model = TeamRequest
         fields = ['id', 'team', 'team_name', 'hackathon_name', 'hackathon_id', 'receiver', 'status', 'created_at']
         read_only_fields = ['id', 'status', 'created_at']
+        validators = []  # Bypass DRF default unique constraint checks to handle custom resending
+
+    def validate(self, attrs):
+        team = attrs['team']
+        receiver = attrs['receiver']
+        
+        # Check if a pending or accepted request already exists
+        if TeamRequest.objects.filter(team=team, receiver=receiver, status='pending').exists():
+            raise serializers.ValidationError("A pending request already exists for this user.")
+        if TeamRequest.objects.filter(team=team, receiver=receiver, status='accepted').exists():
+            raise serializers.ValidationError("This user has already accepted your team invite.")
+            
+        # Delete any previously declined requests first to clear the unique constraint on resend
+        TeamRequest.objects.filter(team=team, receiver=receiver, status='declined').delete()
+        
+        return attrs
 
 
 class SelectProblemStatementSerializer(serializers.Serializer):

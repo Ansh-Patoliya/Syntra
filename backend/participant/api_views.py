@@ -27,24 +27,27 @@ class ParticipantDiscoveryAPIView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # Only users who have made their profile visible
-        queryset = ParticipantProfile.objects.filter(visibility=True)
-        
+        # Only visible profiles — never include the requesting user themselves
+        queryset = ParticipantProfile.objects.filter(visibility=True).exclude(
+            user=self.request.user
+        )
+
         skill_query = self.request.query_params.get('skill')
         if skill_query:
-            # Filter by skill name (case insensitive)
             queryset = queryset.filter(skills__name__icontains=skill_query)
-            
+
         hackathon_id = self.request.query_params.get('hackathon_id')
         if hackathon_id:
-            # Exclude users who are already in a team for this hackathon
-            users_in_teams = TeamMember.objects.filter(
-                hackathon_id=hackathon_id, 
-                user__isnull=False
-            ).values_list('user_id', flat=True)
-            queryset = queryset.exclude(user_id__in=users_in_teams)
+            # Exclude users who are leaders of teams in this hackathon
+            leader_ids = Team.objects.filter(hackathon_id=hackathon_id).values_list('leader_id', flat=True)
+            # Exclude users who are members of teams in this hackathon (by email)
+            member_emails = TeamMember.objects.filter(team__hackathon_id=hackathon_id).values_list('email', flat=True)
             
-        return queryset.distinct()
+            queryset = queryset.exclude(
+                Q(user_id__in=leader_ids) | Q(user__email__in=member_emails)
+            )
+
+        return queryset.select_related('user').prefetch_related('skills').distinct()
 
 
 class TeamViewSet(viewsets.ModelViewSet):
@@ -215,8 +218,18 @@ class TeamRequestViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        user = self.request.user
+        
+        # Exclude requests for hackathons where the receiver is already in a team (leader or member)
+        joined_hackathon_ids = list(Team.objects.filter(leader=user).values_list('hackathon_id', flat=True))
+        joined_hackathon_ids += list(TeamMember.objects.filter(email=user.email).values_list('team__hackathon_id', flat=True))
+        
         return TeamRequest.objects.filter(
-            Q(receiver=self.request.user) | Q(team__leader=self.request.user)
+            Q(receiver=user) | Q(team__leader=user)
+        ).exclude(
+            receiver=user,
+            status='pending',
+            team__hackathon_id__in=joined_hackathon_ids
         ).distinct()
 
     def perform_create(self, serializer):
@@ -225,6 +238,11 @@ class TeamRequestViewSet(viewsets.ModelViewSet):
         
         if team.leader != self.request.user:
             raise PermissionDenied("Only the team leader can send requests.")
+
+        # Ensure team is not full (including pending invitations)
+        from rest_framework import serializers
+        if team.occupied_slots >= team.hackathon.max_team_size:
+            raise serializers.ValidationError("Your team is full (including pending invitations).")
             
         # Ensure the receiver is actually visible
         try:
@@ -233,10 +251,6 @@ class TeamRequestViewSet(viewsets.ModelViewSet):
         except ParticipantProfile.DoesNotExist:
             raise serializers.ValidationError({"receiver": "This user does not have a participant profile."})
         
-        # Check if a pending request already exists
-        if TeamRequest.objects.filter(team=team, receiver=receiver, status='pending').exists():
-            raise serializers.ValidationError("A pending request already exists for this user.")
-            
         serializer.save()
 
     @action(detail=True, methods=['post'])
@@ -248,21 +262,51 @@ class TeamRequestViewSet(viewsets.ModelViewSet):
         if team_request.status != 'pending':
             return Response({"detail": "Request already processed."}, status=status.HTTP_400_BAD_REQUEST)
 
+        team = team_request.team
+        hackathon = team.hackathon
+
+        # Check if the team is already full of accepted members
+        if 1 + team.members.count() >= hackathon.max_team_size:
+            return Response({"detail": "This team is already full."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Ensure the receiver is not already in a team (leader or member) for this hackathon
+        is_in_team = (
+            Team.objects.filter(leader=request.user, hackathon=hackathon).exists() or
+            TeamMember.objects.filter(email=request.user.email, team__hackathon=hackathon).exists()
+        )
+        if is_in_team:
+            return Response({"detail": "You are already in a team for this hackathon."}, status=status.HTTP_400_BAD_REQUEST)
+
         with transaction.atomic():
             team_request.status = 'accepted'
             team_request.save()
             
+            # Get receiver's profile details to copy into TeamMember
+            try:
+                profile = request.user.participant_profile
+                college = profile.college
+                semester = profile.semester
+                degree = profile.degree
+            except Exception:
+                college = 'Not Specified'
+                semester = 1
+                degree = 'Not Specified'
+
             # Create TeamMember
-            TeamMember.objects.get_or_create(
+            member, _ = TeamMember.objects.get_or_create(
                 team=team_request.team,
                 email=request.user.email,
                 defaults={
-                    'hackathon': team_request.team.hackathon,
-                    'user': request.user,
                     'name': request.user.get_full_name() or request.user.email,
-                    'member_role': 'Member'
+                    'college': college,
+                    'semester': semester,
+                    'degree': degree
                 }
             )
+            # Copy receiver's skills if they exist
+            if hasattr(request.user, 'participant_profile'):
+                for skill in request.user.participant_profile.skills.all():
+                    member.skills.add(skill)
 
         return Response({"detail": "Request accepted."}, status=status.HTTP_200_OK)
 
@@ -289,3 +333,14 @@ class ParticipantProfileUpdateAPIView(generics.UpdateAPIView):
             defaults={'college': 'Not Specified', 'semester': 1, 'degree': 'Not Specified'}
         )
         return profile
+
+    def update(self, request, *args, **kwargs):
+        # Team leaders cannot make themselves visible in the recruiting pool
+        is_leader = Team.objects.filter(leader=request.user).exists()
+        visibility_requested = request.data.get('visibility')
+        if is_leader and visibility_requested is True:
+            return Response(
+                {"detail": "Team leaders cannot enable recruiting visibility."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().update(request, *args, **kwargs)
