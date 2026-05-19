@@ -6,7 +6,7 @@ from django.contrib import messages
 from django.core.cache import cache
 from django.db.models import Count, Case, When, F, Value, BooleanField
 from organizer.models import Hackathon, ProblemStatement
-from .models import Team, TeamMember, ParticipantProfile
+from .models import Team, TeamMember, ParticipantProfile, TeamRequest
 from .forms import TeamRegistrationForm, TeamMemberForm
 from django.views.generic import ListView
 
@@ -55,12 +55,16 @@ class HackathonRegisterWizardView(LoginRequiredMixin, View):
         
         team_form = TeamRegistrationForm(instance=team)
         member_form = TeamMemberForm()
+        pending_sent_invites = TeamRequest.objects.none()
+        if team:
+            pending_sent_invites = TeamRequest.objects.filter(team=team, status='pending').select_related('receiver').order_by('-created_at')
 
         return render(request, 'participant/hackathon_register.html', {
             'hackathon': hackathon,
             'team_form': team_form,
             'member_form': member_form,
             'team': team,
+            'pending_sent_invites': pending_sent_invites,
         })
 
     def post(self, request, pk):
@@ -110,9 +114,13 @@ class HackathonRegisterWizardView(LoginRequiredMixin, View):
                 member = get_object_or_404(TeamMember, id=member_id, team=team)
                 member_form = TeamMemberForm(request.POST, instance=member)
             else:
-                # Enforce team capacity (including pending invitations) only for NEW members!
+                # Enforce team capacity for NEW accepted members.
                 if team.occupied_slots >= hackathon.max_team_size:
-                    messages.error(request, "Your team is full (including pending invitations).")
+                    pending_count = team.requests.filter(status='pending').count()
+                    if pending_count > 0:
+                        messages.error(request, f"Your team is full. Adding a member will delete your {pending_count} pending invite(s).")
+                    else:
+                        messages.error(request, "Your team is full.")
                     return redirect('hackathon-register', pk=pk)
                 member_form = TeamMemberForm(request.POST)
 
@@ -135,6 +143,12 @@ class HackathonRegisterWizardView(LoginRequiredMixin, View):
                                 defaults={'name': name}
                             )
                             member.skills.add(skill)
+
+                    # If team is now at max capacity, delete all pending invites
+                    if team.occupied_slots >= hackathon.max_team_size:
+                        deleted_count, _ = TeamRequest.objects.filter(team=team, status='pending').delete()
+                        if deleted_count > 0:
+                            messages.warning(request, f"Team is now full. {deleted_count} pending invite(s) were deleted.")
 
                     if member_id:
                         messages.success(request, "Member updated successfully.")
@@ -174,8 +188,17 @@ class HackathonRegisterWizardView(LoginRequiredMixin, View):
         elif 'remove_member' in request.POST:
             member_id = request.POST.get('member_id')
             if team and member_id:
-                TeamMember.objects.filter(id=member_id, team=team).delete()
-                messages.success(request, "Member removed.")
+                try:
+                    member_id = int(member_id)
+                    deleted_count, _ = TeamMember.objects.filter(id=member_id, team=team).delete()
+                    if deleted_count > 0:
+                        messages.success(request, "Member removed successfully.")
+                    else:
+                        messages.error(request, "Member not found or already removed.")
+                except (ValueError, TypeError):
+                    messages.error(request, "Invalid member ID.")
+            else:
+                messages.error(request, "Cannot remove member. Team or member ID missing.")
             return redirect('hackathon-register', pk=pk)
 
         return redirect('hackathon-register', pk=pk)
@@ -248,12 +271,21 @@ class ParticipantHackathonHubView(LoginRequiredMixin, View):
         # prefetch_related for skills avoids N+1 per member
         members = team.members.prefetch_related('skills').all()
         is_leader = (team.leader == request.user)
+        pending_sent_invites = TeamRequest.objects.none()
+        if is_leader:
+            pending_sent_invites = (
+                TeamRequest.objects
+                .filter(team=team, status='pending')
+                .select_related('receiver')
+                .order_by('-created_at')
+            )
 
         return render(request, 'participant/hackathon_hub.html', {
             'hackathon': hackathon,
             'team': team,
             'members': members,
             'is_leader': is_leader,
+            'pending_sent_invites': pending_sent_invites,
             'problem_statements': ps_data,
             'team_seating': team_seating,
         })

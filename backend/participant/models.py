@@ -48,17 +48,8 @@ class Team(models.Model):
 
     @property
     def occupied_slots(self):
-        from django.utils import timezone
-        # 1 for leader + accepted team members
-        slots = 1 + self.members.count()
-        # Active pending invitations
-        active_pending = self.requests.filter(
-            status='pending',
-            team__is_registered=False,
-            team__hackathon__registration_deadline__gt=timezone.now(),
-            team__hackathon__status='registration_open'
-        ).count()
-        return slots + active_pending
+        # Pending invites do not reserve seats. Capacity is leader + accepted members only.
+        return 1 + self.members.count()
 
 
 class TeamMember(models.Model):

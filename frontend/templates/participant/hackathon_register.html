@@ -190,6 +190,31 @@
                     </form>
                 </div>
 
+                <!-- Pending Sent Invites -->
+                {% if pending_sent_invites %}
+                <div class="mt-8 border-t border-slate-800 pt-6">
+                    <h4 class="text-md font-semibold text-slate-200 mb-3">Pending Invites Sent</h4>
+                    <div id="pending-invites-list" class="space-y-2">
+                        {% for invite in pending_sent_invites %}
+                        <div id="invite-row-{{ invite.id }}" class="p-3 rounded-lg border border-slate-700/50 bg-slate-800/30 flex justify-between items-center">
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm font-medium text-white truncate">{{ invite.receiver.get_full_name|default:invite.receiver.email }}</p>
+                                <p class="text-xs text-slate-400 truncate">{{ invite.receiver.email }}</p>
+                            </div>
+                            <div class="shrink-0 flex items-center gap-2">
+                                <span class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300">
+                                    Pending
+                                </span>
+                                <button type="button" onclick="cancelRegistrationInvite({{ invite.id }}, this)" class="shrink-0 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-300 text-xs font-semibold px-2 py-1 rounded transition-colors">
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
                 <div class="mt-8 border-t border-slate-800 pt-6">
                     <h4 class="text-md font-semibold text-slate-200 mb-2">Search & Invite Members</h4>
                     <p class="text-xs text-slate-400 mb-4">Find registered participants who are open for recruiting and invite them to your team.</p>
@@ -415,6 +440,42 @@
             // Scroll back up to the members list header
             document.getElementById('teammate-form-container').scrollIntoView({ behavior: 'smooth' });
         };
+
+        async function cancelRegistrationInvite(requestId, btn) {
+            btn.disabled = true;
+            const prevText = btn.textContent;
+            btn.textContent = 'Canceling...';
+
+            try {
+                const res = await fetchWithAuth(`/api/participant/requests/${requestId}/`, {
+                    method: 'DELETE',
+                });
+
+                if (res.status === 204) {
+                    const row = document.getElementById(`invite-row-${requestId}`);
+                    if (row) {
+                        row.remove();
+                    }
+                    // Check if any pending invites remain
+                    if (!document.querySelector('#pending-invites-list [id^="invite-row-"]')) {
+                        const container = document.querySelector('.mt-8.border-t');
+                        if (container && container.textContent.includes('Pending Invites Sent')) {
+                            container.remove();
+                        }
+                    }
+                    return;
+                }
+
+                const data = await res.json().catch(() => ({}));
+                btn.disabled = false;
+                btn.textContent = prevText;
+                alert(data.detail || 'Failed to cancel invite.');
+            } catch (e) {
+                btn.disabled = false;
+                btn.textContent = prevText;
+                alert('Network error.');
+            }
+        }
         {% endif %}
     </script>
 </body>
