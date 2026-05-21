@@ -88,6 +88,12 @@ Recent decisions affecting current work:
 
 - Pre-existing broken imports for `HackathonRegistration` were found and removed; need to ensure this model is correctly implemented if needed later.
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260521-s5c | Remove Celery configuration, dependencies, and code, and run seating allocation synchronously | 2026-05-21 | 89b3dd4 | [260521-s5c-remove-celery-configuration-dependencies](./quick/260521-s5c-remove-celery-configuration-dependencies/) |
+
 ## Deferred Items
 
 Items acknowledged and carried forward from previous milestone close:
