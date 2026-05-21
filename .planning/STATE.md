@@ -70,6 +70,7 @@ Progress: [█████░░░░░] 50%
 - Phase 8 added: Room Configuration UI
 - Phase 9 added: participant join registration open hackathon
 - Phase 10 added: Migrate token storage to HttpOnly Cookies with JWT
+- Phase 11 added: Build a production-ready real-time QR scanner system for Syntra hackathons using a “One QR per Team” architecture
 
 
 ### Decisions
