@@ -322,20 +322,35 @@ class TeamRequestViewSet(viewsets.ModelViewSet):
         if is_leader_of_another_team or is_member_of_another_team:
             return Response({"detail": "You are already in a different team for this hackathon."}, status=status.HTTP_400_BAD_REQUEST)
 
-        with transaction.atomic():
-            team_request.status = 'accepted'
-            team_request.save()
-            try:
+        try:
+            with transaction.atomic():
+                team_request.status = 'accepted'
+                team_request.save()
+                
+                # Fetch details from participant profile to populate team member record
+                profile = getattr(request.user, 'participant_profile', None)
+                
                 add_member_to_team(
                     team_request.team,
                     user=request.user,
                     email=request.user.email,
                     name=request.user.get_full_name() or request.user.email,
+                    college=profile.college if profile else None,
+                    semester=profile.semester if profile else None,
+                    degree=profile.degree if profile else None,
                     copy_skills_from_user=True,
                 )
-            except ValidationError as e:
-                # rollback will occur due to exception inside atomic block
-                return Response(e.detail if hasattr(e, 'detail') else {"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Auto-delete all other pending invites for this receiver for the same hackathon
+                TeamRequest.objects.filter(
+                    receiver=request.user,
+                    team__hackathon=hackathon,
+                    status='pending'
+                ).exclude(id=team_request.id).delete()
+                
+        except ValidationError as e:
+            # Transaction rolls back automatically as ValidationError propagates out of atomic block
+            return Response(e.detail if hasattr(e, 'detail') else {"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({"detail": "Request accepted."}, status=status.HTTP_200_OK)
 
@@ -364,6 +379,10 @@ class ParticipantProfileUpdateAPIView(generics.UpdateAPIView):
         return profile
 
     def update(self, request, *args, **kwargs):
+        # Load current profile to detect visibility changes
+        profile = self.get_object()
+        old_visibility = profile.visibility
+
         # Team leaders cannot make themselves visible in the recruiting pool
         is_leader = Team.objects.filter(leader=request.user).exists()
         visibility_requested = request.data.get('visibility')
@@ -372,4 +391,19 @@ class ParticipantProfileUpdateAPIView(generics.UpdateAPIView):
                 {"detail": "Team leaders cannot enable recruiting visibility."},
                 status=status.HTTP_403_FORBIDDEN,
             )
-        return super().update(request, *args, **kwargs)
+
+        # Perform the update
+        response = super().update(request, *args, **kwargs)
+
+        # If the user turned visibility OFF, remove any pending invites for them.
+        # This ensures disabling recruiting immediately withdraws outstanding invites.
+        try:
+            profile.refresh_from_db()
+            if old_visibility and not profile.visibility:
+                from .models import TeamRequest
+                TeamRequest.objects.filter(receiver=request.user, status='pending').delete()
+        except Exception:
+            # Non-fatal; don't block the update response on cleanup failures.
+            pass
+
+        return response
