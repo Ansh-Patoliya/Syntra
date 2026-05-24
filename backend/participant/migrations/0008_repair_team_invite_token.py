@@ -27,10 +27,18 @@ def repair_team_invite_token(apps, schema_editor):
                 [uuid.uuid4().hex, team_id],
             )
 
-        cursor.execute(
-            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='participant_team' AND name='participant_team_invite_token_uniq'"
-        )
-        has_unique_index = cursor.fetchone() is not None
+        cursor.execute("PRAGMA index_list(participant_team)")
+        has_unique_index = False
+
+        for _, index_name, is_unique, *_ in cursor.fetchall():
+            if not is_unique:
+                continue
+
+            cursor.execute(f'PRAGMA index_info("{index_name}")')
+            index_columns = [row[2] for row in cursor.fetchall()]
+            if 'invite_token' in index_columns:
+                has_unique_index = True
+                break
 
         if not has_unique_index:
             cursor.execute(

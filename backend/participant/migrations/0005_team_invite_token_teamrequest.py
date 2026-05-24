@@ -6,6 +6,13 @@ from django.conf import settings
 from django.db import migrations, models
 
 
+def populate_invite_tokens(apps, schema_editor):
+    Team = apps.get_model('participant', 'Team')
+
+    for team in Team.objects.filter(invite_token__isnull=True):
+        Team.objects.filter(pk=team.pk).update(invite_token=uuid.uuid4())
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -17,7 +24,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='team',
             name='invite_token',
-            field=models.UUIDField(default=uuid.uuid4, editable=False, unique=True),
+            field=models.UUIDField(null=True, editable=False),
         ),
         migrations.CreateModel(
             name='TeamRequest',
@@ -31,5 +38,11 @@ class Migration(migrations.Migration):
             options={
                 'unique_together': {('team', 'receiver')},
             },
+        ),
+        migrations.RunPython(populate_invite_tokens, migrations.RunPython.noop),
+        migrations.AlterField(
+            model_name='team',
+            name='invite_token',
+            field=models.UUIDField(default=uuid.uuid4, editable=False, unique=True),
         ),
     ]
