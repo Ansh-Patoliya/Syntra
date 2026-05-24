@@ -31,6 +31,9 @@ class Team(models.Model):
     invite_token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     is_registered = models.BooleanField(default=False)
     qr_code = models.ImageField(upload_to='team_qr_codes/', blank=True, null=True)
+    qr_token = models.UUIDField(unique=True, null=True, blank=True, db_index=True, editable=False)
+    is_qr_active = models.BooleanField(default=True)
+
     food_tokens_total = models.PositiveIntegerField(default=0)
     food_tokens_used = models.PositiveIntegerField(default=0)
     selected_problem_statement = models.ForeignKey(
@@ -49,7 +52,31 @@ class Team(models.Model):
     @property
     def occupied_slots(self):
         # Pending invites do not reserve seats. Capacity is leader + accepted members only.
-        return 1 + self.members.count()
+        member_count = self.members.count()
+        if self.members.filter(email=self.leader.email).exists():
+            return member_count
+        return 1 + member_count
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if self.is_registered:
+            leader_profile = getattr(self.leader, 'participant_profile', None)
+            college = leader_profile.college if leader_profile else ""
+            semester = leader_profile.semester if leader_profile else None
+            degree = leader_profile.degree if leader_profile else ""
+
+            TeamMember.objects.get_or_create(
+                team=self,
+                email=self.leader.email,
+                defaults={
+                    'name': self.leader.full_name or self.leader.email,
+                    'college': college,
+                    'semester': semester,
+                    'degree': degree,
+                }
+            )
+        else:
+            TeamMember.objects.filter(team=self, email=self.leader.email).delete()
 
 
 class TeamMember(models.Model):

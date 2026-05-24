@@ -8,7 +8,7 @@ from django.db.models import Count, Case, When, F, Value, BooleanField
 from organizer.models import Hackathon, ProblemStatement
 from .models import Team, TeamMember, ParticipantProfile, TeamRequest
 from .forms import TeamRegistrationForm, TeamMemberForm
-from django.views.generic import ListView
+from .services import generate_team_qr_code
 
 class HackathonListView(LoginRequiredMixin, ListView):
     model = Hackathon
@@ -182,6 +182,10 @@ class HackathonRegisterWizardView(LoginRequiredMixin, View):
             
             team.is_registered = True
             team.save()
+            
+            # Generate QR code for the team
+            generate_team_qr_code(team)
+            
             messages.success(request, "Registration complete!")
             return redirect('dashboard') # participant dashboard
         
@@ -269,7 +273,7 @@ class ParticipantHackathonHubView(LoginRequiredMixin, View):
         ps_data, from_cache = self._get_problem_statements(hackathon)
         team_seating = self._get_team_seating(hackathon, team)
         # prefetch_related for skills avoids N+1 per member
-        members = team.members.prefetch_related('skills').all()
+        members = team.members.prefetch_related('skills').exclude(email=team.leader.email)
         is_leader = (team.leader == request.user)
         pending_sent_invites = TeamRequest.objects.none()
         if is_leader:
@@ -288,4 +292,43 @@ class ParticipantHackathonHubView(LoginRequiredMixin, View):
             'pending_sent_invites': pending_sent_invites,
             'problem_statements': ps_data,
             'team_seating': team_seating,
+        })
+
+
+class ParticipantTeamPassView(LoginRequiredMixin, View):
+    """
+    Dedicated mobile-optimized Team Pass page showing the team's QR code.
+    Accessible by team leaders and team members.
+    """
+
+    def _get_team(self, hackathon, user):
+        """Return the team where the user is leader OR a member."""
+        team = Team.objects.filter(leader=user, hackathon=hackathon, is_registered=True).first()
+        if not team:
+            member = TeamMember.objects.filter(
+                email=user.email, team__hackathon=hackathon, team__is_registered=True
+            ).select_related('team').first()
+            if member:
+                team = member.team
+        return team
+
+    def get(self, request, pk):
+        hackathon = get_object_or_404(Hackathon, pk=pk)
+        team = self._get_team(hackathon, request.user)
+
+        if not team:
+            messages.error(request, "You are not registered for this hackathon.")
+            return redirect('dashboard')
+
+        # Ensure QR code exists (generate if missing)
+        if not team.qr_token or not team.qr_code:
+            generate_team_qr_code(team)
+            team.refresh_from_db()
+
+        members = team.members.prefetch_related('skills').exclude(email=team.leader.email)
+
+        return render(request, 'participant/team_pass.html', {
+            'hackathon': hackathon,
+            'team': team,
+            'members': members,
         })
