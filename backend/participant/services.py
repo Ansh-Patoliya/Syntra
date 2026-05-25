@@ -78,6 +78,7 @@ def generate_team_qr_code(team):
         
         buffer = BytesIO()
         img.save(buffer, format='PNG')
+        buffer.seek(0)
         filename = f"team_{team.id}_qr.png"
         team.qr_code.save(filename, File(buffer), save=False)
         team.save(update_fields=['qr_code'])
