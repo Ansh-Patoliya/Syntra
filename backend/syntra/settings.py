@@ -421,3 +421,7 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31_536_000          # 1 year
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
+
+# ── Razorpay Payment Integration ─────────────────────────────────────────────
+RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID', '').strip()
+RAZORPAY_KEY_SECRET = os.getenv('RAZORPAY_KEY_SECRET', '').strip()

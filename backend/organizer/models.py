@@ -36,6 +36,15 @@ class Hackathon(models.Model):
     max_team_size = models.PositiveIntegerField(default=4)
     room_configuration = models.JSONField(null=True, blank=True)
     seating_allocation = models.JSONField(null=True, blank=True)
+    
+    # Pricing Configuration
+    is_paid = models.BooleanField(default=False)
+    fee_type = models.CharField(
+        max_length=20, 
+        choices=[('team', 'Team Wise'), ('participant', 'Participant Wise')], 
+        null=True, blank=True
+    )
+    fee_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

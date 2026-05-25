@@ -180,6 +180,20 @@ class HackathonRegisterWizardView(LoginRequiredMixin, View):
                     messages.error(request, f"Validation Failed: Teammate '{member.name}' is missing required fields: {missing}.")
                     return redirect('hackathon-register', pk=pk)
             
+            if hackathon.is_paid:
+                amount = hackathon.fee_amount
+                if hackathon.fee_type == 'participant':
+                    amount = hackathon.fee_amount * member_count
+                
+                from .payment_services import create_razorpay_order
+                try:
+                    razorpay_order, payment = create_razorpay_order(amount, team, request.user)
+                except ValueError as e:
+                    messages.error(request, "Payment gateway configuration error. Please contact the organizer.")
+                    return redirect('hackathon-register', pk=pk)
+                
+                return redirect('payment-checkout', pk=payment.id)
+
             team.is_registered = True
             team.save()
             
@@ -332,3 +346,44 @@ class ParticipantTeamPassView(LoginRequiredMixin, View):
             'team': team,
             'members': members,
         })
+
+from .models import Payment
+from .payment_services import verify_razorpay_signature
+from django.conf import settings
+
+class PaymentCheckoutView(LoginRequiredMixin, View):
+    def get(self, request, pk):
+        payment = get_object_or_404(Payment, pk=pk, user=request.user, status='pending')
+        context = {
+            'payment': payment,
+            'razorpay_key_id': settings.RAZORPAY_KEY_ID,
+        }
+        return render(request, 'participant/payment_checkout.html', context)
+
+class PaymentVerifyView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        payment = get_object_or_404(Payment, pk=pk, user=request.user, status='pending')
+        
+        razorpay_payment_id = request.POST.get('razorpay_payment_id')
+        razorpay_order_id = request.POST.get('razorpay_order_id')
+        razorpay_signature = request.POST.get('razorpay_signature')
+        
+        if verify_razorpay_signature(razorpay_order_id, razorpay_payment_id, razorpay_signature):
+            payment.status = 'successful'
+            payment.razorpay_payment_id = razorpay_payment_id
+            payment.razorpay_signature = razorpay_signature
+            payment.save()
+            
+            team = payment.team
+            team.is_registered = True
+            team.save()
+            
+            generate_team_qr_code(team)
+            
+            messages.success(request, "Payment successful! Registration complete!")
+            return redirect('dashboard')
+        else:
+            payment.status = 'failed'
+            payment.save()
+            messages.error(request, "Payment verification failed. Please try again.")
+            return redirect('hackathon-register', pk=payment.team.hackathon.id)

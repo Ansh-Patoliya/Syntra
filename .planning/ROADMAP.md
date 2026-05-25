@@ -41,3 +41,13 @@ Syntra's current milestone focuses on the Problem Statement feature for hackatho
   Plans:
   - [ ] TBD (run /gsd-plan-phase 12 to break down)
 **Requirements**: HACK-05
+
+  ### Phase 12.1: Integrate Razorpay payment system for hackathons
+
+  **Goal:** Integrate Razorpay payment system (demo mode) with team-wise/participant-wise pricing set by organizer.
+  **Requirements**: TBD
+  **Depends on:** Phase 12
+  **Plans:** 0 plans
+
+  Plans:
+  - [ ] TBD (run /gsd-plan-phase 12.1 to break down)

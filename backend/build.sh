@@ -46,7 +46,4 @@ else
     echo "  ⏭  Skipped (set DJANGO_SUPERUSER_EMAIL env var to enable)"
 fi
 
-echo "▶ Migrating existing QR codes to Cloudinary (TEMPORARY)…"
-python migrate_qrs.py
-
 echo "✅ Build complete!"

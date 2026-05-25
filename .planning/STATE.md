@@ -75,6 +75,7 @@ Progress: [█████░░░░░] 50%
 - Phase 10 added: Migrate token storage to HttpOnly Cookies with JWT
 - Phase 11 added: Build a production-ready real-time QR scanner system for Syntra hackathons using a “One QR per Team” architecture
 - Phase 12 added: build the UI for displaying the QR code to participants and/or creating a scanning interface for organizers!
+- Phase 12.1 added: Integrate Razorpay payment system for hackathons
 
 ### Decisions
 
