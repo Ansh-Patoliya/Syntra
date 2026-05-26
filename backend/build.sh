@@ -5,7 +5,6 @@ set -o errexit   # exit on error
 
 echo "▶ Installing Python dependencies…"
 pip install --upgrade pip
-pip install setuptools
 pip install -r requirements.txt
 
 echo "▶ Building compiled Tailwind CSS…"

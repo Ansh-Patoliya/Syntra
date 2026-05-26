@@ -1,57 +1,65 @@
+import hashlib
+import hmac
+import requests
 from django.conf import settings
 from .models import Payment
 
-def get_razorpay_client():
-    import razorpay
+
+def get_razorpay_auth():
+    """Return HTTP Basic Auth tuple for Razorpay API."""
     if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
         raise ValueError("Razorpay keys are not configured in settings.")
-    return razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+    return (settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
+
 
 def create_razorpay_order(amount, team, user):
     """
-    amount is in INR (rupees). Razorpay expects amount in paise, so we multiply by 100.
+    Create a Razorpay order via REST API.
+    amount is in INR (rupees). Razorpay expects paise, so we multiply by 100.
     """
-    client = get_razorpay_client()
-    
+    auth = get_razorpay_auth()
+
     order_amount = int(amount * 100)
-    order_currency = 'INR'
-    
     order_receipt = f"team_{team.id}_user_{user.id}"
-    
-    payment_data = {
+
+    payload = {
         'amount': order_amount,
-        'currency': order_currency,
+        'currency': 'INR',
         'receipt': order_receipt,
     }
-    
-    # Hit Razorpay API to create an order
-    razorpay_order = client.order.create(data=payment_data)
-    
+
+    response = requests.post(
+        'https://api.razorpay.com/v1/orders',
+        json=payload,
+        auth=auth,
+        timeout=15,
+    )
+    response.raise_for_status()
+    razorpay_order = response.json()
+
     # Create the pending payment record
     payment = Payment.objects.create(
         team=team,
         user=user,
         amount=amount,
         razorpay_order_id=razorpay_order['id'],
-        status='pending'
+        status='pending',
     )
-    
+
     return razorpay_order, payment
+
 
 def verify_razorpay_signature(order_id, payment_id, signature):
     """
-    Verifies the signature using Razorpay SDK.
-    Returns True if valid, raises error or returns False if invalid.
+    Verify Razorpay payment signature using HMAC-SHA256.
+    No SDK needed — this is a standard cryptographic check.
     """
-    import razorpay
-    client = get_razorpay_client()
-    params_dict = {
-        'razorpay_order_id': order_id,
-        'razorpay_payment_id': payment_id,
-        'razorpay_signature': signature
-    }
-    try:
-        client.utility.verify_payment_signature(params_dict)
-        return True
-    except razorpay.errors.SignatureVerificationError:
+    if not order_id or not payment_id or not signature:
         return False
+
+    secret = settings.RAZORPAY_KEY_SECRET.encode('utf-8')
+    message = f"{order_id}|{payment_id}".encode('utf-8')
+
+    expected_signature = hmac.new(secret, message, hashlib.sha256).hexdigest()
+
+    return hmac.compare_digest(expected_signature, signature)

@@ -10,8 +10,6 @@ Pillow==11.2.1
 qrcode==8.0
 cloudinary==1.42.2
 django-cloudinary-storage==0.3.0
-razorpay==1.4.1
-setuptools
 
 # ── Caching ──
 django-redis==5.4.0
