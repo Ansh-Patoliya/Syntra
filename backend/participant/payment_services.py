@@ -1,8 +1,8 @@
-import razorpay
 from django.conf import settings
 from .models import Payment
 
 def get_razorpay_client():
+    import razorpay
     if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
         raise ValueError("Razorpay keys are not configured in settings.")
     return razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
@@ -43,6 +43,7 @@ def verify_razorpay_signature(order_id, payment_id, signature):
     Verifies the signature using Razorpay SDK.
     Returns True if valid, raises error or returns False if invalid.
     """
+    import razorpay
     client = get_razorpay_client()
     params_dict = {
         'razorpay_order_id': order_id,
