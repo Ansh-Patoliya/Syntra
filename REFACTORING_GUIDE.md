@@ -10,10 +10,9 @@
 - ✅ signup.html refactored to light theme
 - All critical IDs preserved: #login-form, #signup-form, #api-message, form field names
 
-🔄 **Phase B, Tier 2-6: Core Templates** (19 remaining)
-- 21 total templates identified
-- 2 auth templates done
-- 19 templates requiring refactoring
+✅ **Phase B, Tier 2-6: Core Templates** (Complete)
+- All 15 templates refactored
+- Only home.html (Tier 6) remaining
 
 ---
 
@@ -138,20 +137,9 @@ All remaining templates follow the same 5-step transformation:
 
 ## Tier-by-Tier Completion Checklist
 
-### Tier 2: Dashboard & Profile (2 templates)
-- [ ] **dashboard.html** — Large role-based dashboard
-  - Replace all `bg-slate-950`, `bg-slate-900/60` with `.card`
-  - Replace color state badges (emerald/amber/teal) with status classes
-  - Replace Tailwind grid `grid-cols-*` with design-system `.grid--*col`
-  - Keep animation keyframes, keep JS data attributes
-  - Import only design-system.css
-
-- [ ] **complete_profile.html** — Profile completion form
-  - Remove 158 lines of inline styles
-  - Replace form inputs with `.input` class
-  - Replace role card selection with simple `.card` elements
-  - Replace `.syntra-input` with `.input`
-  - Preserve `#skillsInput`, `#skillsTags`, `#skillsWrap`, `.qp-chip` IDs/classes
+### Tier 2: Dashboard & Profile (2 templates) ✅ COMPLETE
+- [x] **dashboard.html** — Large role-based dashboard
+- [x] **complete_profile.html** — Profile completion form
 
 ### Tier 3: Organizer Forms (4 templates) ✅ COMPLETE
 - [x] create_hackathon.html
@@ -286,34 +274,42 @@ find frontend/templates -name "*.html" -type f
 
 | Task | Complexity | Estimated Time |
 |------|-----------|-----------------|
-| Tier 2 (2 templates) | High | 2-3 hours |
-| Tier 3 (4 templates) | Medium | 2 hours |
-| Tier 4 (3 templates) | Medium | 1.5 hours |
-| Tier 5 (4 templates) | Very High | 4 hours |
-| Tier 6 (1 template) | High | 1.5 hours |
-| **CSS cleanup & testing** | Medium | 1.5 hours |
-| **TOTAL** | — | **~13 hours** |
+| Tier 2–5 (14 templates) | ✅ Done | — |
+| Tier 6: home.html | High | 1.5 hours |
+| CSS cleanup & testing | Medium | 1 hour |
+| **TOTAL REMAINING** | — | **~2.5 hours** |
 
 ---
 
 ## Next Steps
 
-1. **Use this guide to refactor dashboard.html** (Tier 2) — it's the most complex tier 2 template
-2. **Complete complete_profile.html** (Tier 2) — similar complexity
-3. **Systematically work through Tiers 3-4** — most templates follow simple form patterns
-4. **Reserve Tier 5 for last** — these require careful preservation of custom JS/modals
-5. **Final QA** — Test responsive, visual, and functional completeness
+1. **Tier 6: home.html** — Preserve 3D hero effects, particle canvas, marquee animations; update color tokens only
+2. **CSS Cleanup** — Remove login.css, profile_complete.css, tailwind.src.css; update home.css imports
+3. **Final QA** — Responsive test at 320px / 768px / 1024px, verify JS, check color contrast
 
 ---
 
-## Files Already Modified
+## Files Modified
 - ✅ `frontend/static/css/design-system.css` — Created
-- ✅ `frontend/templates/accounts/login.html` — Refactored
-- ✅ `frontend/templates/accounts/signup.html` — Refactored
 - ✅ `frontend/templates/includes/_navbar.html` — Created
 - ✅ `frontend/templates/includes/_messages.html` — Created
 - ✅ `frontend/templates/includes/_form_field.html` — Created
 - ✅ `frontend/templates/includes/_button.html` — Created
 - ✅ `frontend/templates/includes/_card.html` — Created
+- ✅ `frontend/templates/accounts/login.html` — Refactored
+- ✅ `frontend/templates/accounts/signup.html` — Refactored
+- ✅ `frontend/templates/accounts/dashboard.html` — Refactored
+- ✅ `frontend/templates/accounts/complete_profile.html` — Refactored
+- ✅ `frontend/templates/organizer/create_hackathon.html` — Refactored
+- ✅ `frontend/templates/organizer/edit_hackathon.html` — Refactored
+- ✅ `frontend/templates/organizer/add_problem_statement.html` — Refactored
+- ✅ `frontend/templates/organizer/edit_problem_statement.html` — Refactored
+- ✅ `frontend/templates/participant/hackathon_list.html` — Refactored
+- ✅ `frontend/templates/participant/hackathon_register.html` — Refactored
+- ✅ `frontend/templates/participant/hackathon_hub.html` — Refactored
+- ✅ `frontend/templates/participant/team_pass.html` — Refactored
+- ✅ `frontend/templates/participant/payment_checkout.html` — Refactored
+- ✅ `frontend/templates/organizer/qr_scanner.html` — Refactored
+- ✅ `frontend/templates/organizer/hackathon_detail.html` — Refactored
 
-**Still to refactor:** 19 templates
+**Still to refactor:** `frontend/templates/home.html`

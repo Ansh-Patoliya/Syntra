@@ -22,7 +22,7 @@
    - `_button.html` — Button component
    - `_card.html` — Card component
 
-### Phase B: Template Refactoring (3 of 15 = 20% Complete)
+### Phase B: Template Refactoring (15 of 15 = 100% Complete) ✅
 1. **`accounts/login.html`** ✅
    - Dark theme → Light SaaS theme
    - Bootstrap removed, design-system.css only
@@ -75,7 +75,7 @@
 
 ---
 
-## 📋 IN PROGRESS / PENDING (4 of 15 = 27% Remaining)
+## 📋 IN PROGRESS / PENDING
 
 ### Tier 2: Dashboard & Profile (2 of 2 = 100% Complete) ✅
 
@@ -164,7 +164,7 @@ All remaining templates follow this proven 5-step pattern:
 
 | Metric | Current | Target | % Complete |
 |--------|---------|--------|-----------|
-| Templates Refactored | 11 | 15 | 73% |
+| Templates Refactored | 15 | 15 | 100% |
 | CSS Files Created | 1 (design-system.css) | 1 | 100% |
 | Design Tokens | 30+ | 30+ | 100% |
 | Component Types | 10 | 10 | 100% |
@@ -177,43 +177,29 @@ All remaining templates follow this proven 5-step pattern:
 
 | Task | Hours | Notes |
 |------|-------|-------|
-| Fix payment_checkout.html (nav/body) | 0.25 | Minor — already has design-system.css, just fix dark Tailwind nav |
-| Tier 5: qr_scanner.html | 2 | Preserve camera/QR JS, modal, toast |
-| Tier 5: team_pass.html | 1 | Preserve QR display, copy token JS |
-| Tier 5: hackathon_detail.html | 2.5 | Largest file, preserve scan category JS, PS cards |
 | Tier 6: home.html | 1.5 | Preserve hero 3D effects, particle canvas |
 | CSS cleanup & testing | 1 | Remove old files, visual QA |
-| **TOTAL REMAINING** | **~8.25 hours** | Can be parallelized |
+| **TOTAL REMAINING** | **~2.5 hours** | |
 
 ---
 
 ## 🚀 Next Steps (Recommended Order)
 
-1. **Fix payment_checkout.html** (15 min)
-   - Nav and body already partially migrated — remove dark Tailwind classes from nav
-
-2. **Complete Tier 5: team_pass.html** (1 hour)
-   - Preserve QR pulse animation and copy token JS
-   - Replace glassmorphism/dark with design-system cards
-
-3. **Complete Tier 5: qr_scanner.html** (2 hours)
-   - Preserve all camera/QR/modal JS
-   - Replace dark Tailwind + glass with design-system equivalents
-
-4. **Complete Tier 5: hackathon_detail.html** (2.5 hours)
-   - Largest file — preserve scan category toggle/delete JS, PS capacity bar
-   - Replace dark glassmorphism with light cards
-
-5. **Tier 6: home.html** (1.5 hours)
+1. **Tier 6: home.html** (1.5 hours)
    - Keep 3D perspective transforms, particle canvas, marquee animations
    - Update color tokens only
 
-6. **CSS Cleanup & Final QA** (1 hour)
+2. **CSS Cleanup** (1 hour)
    - Remove frontend/static/css/login.css
    - Remove frontend/static/css/profile_complete.css
    - Remove frontend/static/css/tailwind.src.css
    - Update frontend/static/css/home.css imports
    - Run responsive tests at 320px / 768px / 1024px
+
+3. **Final QA** (1 hour)
+   - Test all interactive features
+   - Verify responsive at 320px, 768px, 1024px
+   - Check color contrast (WCAG AA)
 
 ---
 
@@ -240,12 +226,12 @@ All remaining templates follow this proven 5-step pattern:
 - ✅ `frontend/templates/participant/hackathon_list.html`
 - ✅ `frontend/templates/participant/hackathon_register.html`
 - ✅ `frontend/templates/participant/hackathon_hub.html`
-
-**Not Yet Fully Refactored (4 remaining):**
 - ✅ `frontend/templates/participant/team_pass.html`
 - ✅ `frontend/templates/participant/payment_checkout.html`
 - ✅ `frontend/templates/organizer/qr_scanner.html`
 - ✅ `frontend/templates/organizer/hackathon_detail.html`
+
+**Not Yet Refactored (1 remaining):**
 - ⏳ `frontend/templates/home.html` — dark theme, tailwind.css (preserve 3D hero effects)
 
 ---
@@ -267,10 +253,8 @@ All remaining templates follow this proven 5-step pattern:
 
 1. **Dashboard template is your reference** — All remaining templates should mirror its structure
 2. **Use REFACTORING_GUIDE.md** — It has exact class mappings, quick template, patterns
-3. **Complete Tier 2 first** — Only complete_profile.html remains; fastest win
-4. **Tier 3-4 are low-hanging fruit** — Forms are mostly identical across organizer/participant
-5. **Save Tier 5 for careful work** — qr_scanner & hackathon_detail need custom JS preservation
-6. **Test as you go** — Don't wait until the end; catch JS breaks early
+3. **Only home.html remains** — preserve 3D hero effects, particle canvas, marquee animations
+4. **Test as you go** — Don't wait until the end; catch JS breaks early
 
 ---
 
@@ -284,6 +268,6 @@ All remaining templates follow this proven 5-step pattern:
 
 ---
 
-**Status:** 11/15 templates done — Tier 2, 3, and 4 complete  
-**Remaining:** Tier 5 (4 complex templates) + Tier 6 (home page)  
-**Estimated Completion:** ~8.25 more hours of focused work
+**Status:** 15/15 templates done — Tiers 2–5 complete  
+**Remaining:** Tier 6 (home.html) + CSS cleanup  
+**Estimated Completion:** ~2.5 more hours of focused work
