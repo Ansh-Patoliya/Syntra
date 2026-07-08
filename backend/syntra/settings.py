@@ -19,10 +19,10 @@ from urllib.parse import urlparse
 BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR.parent / 'frontend'
 
-# Load .env from project root (local dev) — harmless if missing on Render
-_env_path = BASE_DIR.parent / '.env'
-if _env_path.exists():
-    load_dotenv(_env_path)
+# Load .env from backend dir or project root (local dev) — harmless if missing on Render
+for path in [BASE_DIR / '.env', BASE_DIR.parent / '.env']:
+    if path.exists():
+        load_dotenv(path)
 
 import sentry_sdk
 from sentry_sdk.integrations.django import DjangoIntegration
